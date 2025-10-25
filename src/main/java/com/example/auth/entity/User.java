@@ -1,4 +1,4 @@
-package com.example.authapplication.model;
+package com.example.auth.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -6,25 +6,30 @@ import lombok.*;
 @Entity
 @Table(name = "users")
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
     private String name;
 
-    @Column(nullable = false, unique = true)
+    @Column(unique = true, nullable = false)
     private String email;
 
     @Column(nullable = false)
     private String password;
 
-    @Column(nullable = false)
-    private boolean isVerified = false;
-}
+    @Column(name = "is_verified", nullable = false)
+    private Boolean verified = false;
+    public boolean isVerified() {
+        return verified;
+    }
 
+    public void setVerified(boolean verified) {
+        this.verified = verified;
+    }
+}
