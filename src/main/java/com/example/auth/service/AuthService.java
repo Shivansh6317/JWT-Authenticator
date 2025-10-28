@@ -3,8 +3,10 @@ package com.example.auth.service;
 import com.example.auth.config.JwtProvider;
 import com.example.auth.dto.*;
 import com.example.auth.entity.User;
+import com.example.auth.exception.CustomException;
 import com.example.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -19,9 +21,17 @@ public class AuthService {
 
     public String register(RegisterRequest request) {
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
-            throw new RuntimeException("Email already registered");
+            throw new CustomException("Email already registered", HttpStatus.CONFLICT);
         }
-
+        if (!request.getEmail().matches("^[A-Za-z0-9+_.-]+@(.+)$")) {
+            throw new CustomException("Invalid email format", HttpStatus.BAD_REQUEST);
+        }
+        try {
+            String domain = request.getEmail().substring(request.getEmail().indexOf("@") + 1);
+            java.net.InetAddress.getByName(domain);
+        } catch (Exception e) {
+            throw new CustomException("Email domain does not exist", HttpStatus.BAD_REQUEST);
+        }
         User user = User.builder()
                 .name(request.getName())
                 .email(request.getEmail())
@@ -63,14 +73,15 @@ public class AuthService {
 
     public AuthResponse login(LoginRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() ->  new CustomException("Invalid email or password", HttpStatus.UNAUTHORIZED));
+
 
         if (!user.isVerified()) {
-            throw new RuntimeException("User not verified");
+            throw new CustomException("User not verified. Please verify your email before logging in.", HttpStatus.FORBIDDEN);
         }
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new RuntimeException("Invalid password");
+            throw new CustomException("Invalid email or password", HttpStatus.UNAUTHORIZED);
         }
 
         String accessToken = jwtProvider.generateAccessToken(user.getEmail());
@@ -85,7 +96,7 @@ public class AuthService {
 
     public AuthResponse refreshToken(RefreshTokenRequest request) {
         if (!jwtProvider.validateToken(request.getRefreshToken())) {
-            throw new RuntimeException("Invalid refresh token");
+            throw new CustomException("Invalid or expired refresh token", HttpStatus.UNAUTHORIZED);
         }
 
         String email = jwtProvider.getEmailFromToken(request.getRefreshToken());
@@ -98,7 +109,17 @@ public class AuthService {
     }
 
 
-    public String logout() {
-        return "Logout successful";
+    public void logout(String tokenHeader) {
+        if (tokenHeader == null || !tokenHeader.startsWith("Bearer ")) {
+            throw new CustomException("No active session or invalid request", HttpStatus.BAD_REQUEST);
+        }
+
+        String token = tokenHeader.substring(7);
+        if (!jwtProvider.validateToken(token)) {
+            throw new CustomException("Invalid or expired token. Please login again.", HttpStatus.UNAUTHORIZED);
+        }
+
+
     }
+
 }

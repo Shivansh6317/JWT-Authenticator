@@ -1,10 +1,16 @@
 package com.example.auth.controller;
 
 import com.example.auth.dto.*;
+import com.example.auth.exception.CustomException;
 import com.example.auth.service.AuthService;
+import com.example.auth.service.ImageService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -12,11 +18,13 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final ImageService imageService;
+
 
     @PostMapping("/register")
     public ResponseEntity<String> register(@RequestBody RegisterRequest request) {
         String otp = authService.register(request);
-        return ResponseEntity.ok("OTP sent to email (dummy): " + otp);
+        return ResponseEntity.ok("OTP sent to email : " + otp);
     }
 
     @PostMapping("/verify-otp")
@@ -29,7 +37,7 @@ public class AuthController {
     @PostMapping("/resend-otp")
     public ResponseEntity<String> resendOtp(@RequestParam String email) {
         String otp = authService.resendOtp(email);
-        return ResponseEntity.ok("OTP resent (dummy): " + otp);
+        return ResponseEntity.ok("OTP resent : " + otp);
     }
 
     @PostMapping("/login")
@@ -43,7 +51,16 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<String> logout() {
-        return ResponseEntity.ok(authService.logout());
+    public ResponseEntity<Map<String, String>> logout(
+            @RequestHeader(value = "Authorization", required = false) String tokenHeader) {
+        authService.logout(tokenHeader);
+        return ResponseEntity.ok(Map.of("message", "Logout successful"));
     }
+    @PostMapping("/upload-profile")
+    public ResponseEntity<Map<String, String>> uploadProfile(@RequestParam("file") MultipartFile file) {
+        String imageUrl = imageService.uploadImage(file);
+        return ResponseEntity.ok(Map.of("imageUrl", imageUrl));
+    }
+
+
 }
