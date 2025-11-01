@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: auth-application-backend
+    env: java
+    plan: free
+    branch: main
+    buildCommand: ./mvnw clean package -DskipTests
+    startCommand: java -jar target/*.jar
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+    healthCheckPath: /actuator/health
