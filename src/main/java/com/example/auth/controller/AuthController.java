@@ -35,9 +35,9 @@ public class AuthController {
     }
 
     @PostMapping("/resend-otp")
-    public ResponseEntity<String> resendOtp(@RequestParam String email) {
-        String otp = authService.resendOtp(email);
-        return ResponseEntity.ok("OTP resent : " + otp);
+    public ResponseEntity<String> resendOtp(@RequestBody ResendOtpRequest request) {
+        String otp=authService.resendOtp(request);
+        return ResponseEntity.ok("OTP resent successfully  " +otp);
     }
 
     @PostMapping("/login")
@@ -51,10 +51,9 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Map<String, String>> logout(
-            @RequestHeader(value = "Authorization", required = false) String tokenHeader) {
-        authService.logout(tokenHeader);
-        return ResponseEntity.ok(Map.of("message", "Logout successful"));
+    public ResponseEntity<?> logout(@RequestBody RefreshTokenRequest request) {
+        authService.logout(request.getRefreshToken());
+        return ResponseEntity.ok(Map.of("message", "Logged out successfully"));
     }
     @PostMapping("/upload-profile")
     public ResponseEntity<Map<String, String>> uploadProfile(@RequestParam("file") MultipartFile file) {

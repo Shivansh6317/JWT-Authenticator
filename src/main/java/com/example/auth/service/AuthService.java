@@ -9,6 +9,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import com.example.auth.entity.RefreshToken;
+import com.example.auth.repository.RefreshTokenRepository;
+import java.time.Instant;
 
 @Service
 @RequiredArgsConstructor
@@ -18,6 +21,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final OtpService otpService;
     private final JwtProvider jwtProvider;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     public String register(RegisterRequest request) {
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
@@ -59,21 +63,19 @@ public class AuthService {
     }
 
 
-    public String resendOtp(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
+    public String resendOtp(ResendOtpRequest request) {
+        String email = request.getEmail().toLowerCase();
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new CustomException("User not found with email: " + email, HttpStatus.NOT_FOUND));
         if (user.isVerified()) {
-            throw new RuntimeException("User already verified");
+            throw new CustomException("User is already verified", HttpStatus.BAD_REQUEST);
         }
-
         return otpService.generateOtp(email);
     }
 
 
     public AuthResponse login(LoginRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() ->  new CustomException("Invalid email or password", HttpStatus.UNAUTHORIZED));
+                .orElseThrow(() -> new CustomException("Invalid email or password", HttpStatus.UNAUTHORIZED));
 
 
         if (!user.isVerified()) {
@@ -85,22 +87,35 @@ public class AuthService {
         }
 
         String accessToken = jwtProvider.generateAccessToken(user.getEmail());
-        String refreshToken = jwtProvider.generateRefreshToken(user.getEmail());
+        String refreshTokenString = jwtProvider.generateRefreshToken(user.getEmail());
 
+        RefreshToken refreshToken = RefreshToken.builder()
+                .token(refreshTokenString)
+                .user(user)
+                .expiryDate(Instant.now().plusMillis(604800000)) // 7 days
+                .build();
+        refreshTokenRepository.save(refreshToken);
         return AuthResponse.builder()
                 .accessToken(accessToken)
-                .refreshToken(refreshToken)
+                .refreshToken(refreshTokenString)
                 .build();
     }
 
 
     public AuthResponse refreshToken(RefreshTokenRequest request) {
+        RefreshToken savedToken = refreshTokenRepository.findByToken(request.getRefreshToken())
+                .orElseThrow(() -> new CustomException("Please Login again", HttpStatus.UNAUTHORIZED));
+
+        if (savedToken.getExpiryDate().isBefore(Instant.now())) {
+            refreshTokenRepository.delete(savedToken);
+            throw new CustomException("Refresh token expired. Please login again.", HttpStatus.UNAUTHORIZED);
+        }
         if (!jwtProvider.validateToken(request.getRefreshToken())) {
             throw new CustomException("Invalid or expired refresh token", HttpStatus.UNAUTHORIZED);
         }
 
-        String email = jwtProvider.getEmailFromToken(request.getRefreshToken());
-        String accessToken = jwtProvider.generateAccessToken(email);
+        User user = savedToken.getUser();
+        String accessToken = jwtProvider.generateAccessToken(user.getEmail());
 
         return AuthResponse.builder()
                 .accessToken(accessToken)
@@ -109,17 +124,10 @@ public class AuthService {
     }
 
 
-    public void logout(String tokenHeader) {
-        if (tokenHeader == null || !tokenHeader.startsWith("Bearer ")) {
-            throw new CustomException("No active session or invalid request", HttpStatus.BAD_REQUEST);
-        }
+    public void logout(String refreshToken) {
+        RefreshToken token = refreshTokenRepository.findByToken(refreshToken)
+                .orElseThrow(() -> new CustomException("No active session. Please Login again", HttpStatus.BAD_REQUEST));
 
-        String token = tokenHeader.substring(7);
-        if (!jwtProvider.validateToken(token)) {
-            throw new CustomException("Invalid or expired token. Please login again.", HttpStatus.UNAUTHORIZED);
-        }
-
-
+        refreshTokenRepository.delete(token);
     }
-
 }
