@@ -1,8 +1,0 @@
-services:
-  - type: web
-    name: auth-application
-    env: docker
-    plan: free
-    branch: main
-    buildCommand: ./mvnw clean package -DskipTests
-    startCommand: java -jar target/*.jar
