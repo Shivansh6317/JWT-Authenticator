@@ -1,14 +1,21 @@
-# Step 1: Use an official Java image
-FROM eclipse-temurin:17-jdk-alpine
-
-# Step 2: Set working directory
+# Step 1: Build stage
+FROM maven:3.9.6-eclipse-temurin-17 AS builder
 WORKDIR /app
 
-# Step 3: Copy the built jar (we’ll build it during deploy)
-COPY target/*.jar app.jar
+# Copy project files
+COPY pom.xml .
+COPY src ./src
 
-# Step 4: Expose port 8080
+# Build the application (skip tests to speed up)
+RUN mvn clean package -DskipTests
+
+# Step 2: Run stage
+FROM eclipse-temurin:17-jdk-alpine
+WORKDIR /app
+
+# Copy the built jar from builder stage
+COPY --from=builder /app/target/*.jar app.jar
+
 EXPOSE 8080
 
-# Step 5: Run the jar
 ENTRYPOINT ["java", "-jar", "app.jar"]
