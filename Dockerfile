@@ -10,7 +10,7 @@ COPY src ./src
 RUN mvn clean package -DskipTests
 
 # Step 2: Run stage
-FROM eclipse-temurin:17-jdk-alpinegi
+FROM eclipse-temurin:17-jdk-alpine
 WORKDIR /app
 
 # Copy the built jar from builder stage
